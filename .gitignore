@@ -1,0 +1,7 @@
+__pycache__/
+*.pyc
+.env
+trades_log.json
+.vscode/
+.idea/
+*.log
