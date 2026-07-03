@@ -1,105 +1,105 @@
 #!/usr/bin/env python3
-import sys
-import os
+import tkinter as tk
 from datetime import datetime
 import pytz
+import threading
 
-# Check if PyQt5 is installed
-try:
-    from PyQt5.QtWidgets import QApplication, QWidget, QVBoxLayout, QLabel, QPushButton, QComboBox, QHBoxLayout
-    from PyQt5.QtCore import QTimer, Qt
-    from PyQt5.QtGui import QFont
-except ImportError:
-    print("PyQt5 not installed. Installing...")
-    os.system("pip install PyQt5 pytz")
-    from PyQt5.QtWidgets import QApplication, QWidget, QVBoxLayout, QLabel, QPushButton, QComboBox, QHBoxLayout
-    from PyQt5.QtCore import QTimer, Qt
-    from PyQt5.QtGui import QFont
-
-class Clock(QWidget):
-    def __init__(self):
-        super().__init__()
-        self.zones = ['UTC', 'US/Eastern', 'Europe/Paris', 'Asia/Tokyo', 'Australia/Sydney']
-        self.labels = []
-        self.init()
+class WorldClock:
+    def __init__(self, root):
+        self.root = root
+        self.root.title("World Clock")
+        self.root.geometry("800x500")
+        self.root.configure(bg='black')
         
-    def init(self):
-        self.setWindowTitle('Clock')
-        self.setGeometry(50, 50, 600, 400)
-        self.setStyleSheet("background: black; color: lime;")
+        self.timezones = {
+            'UTC': 'UTC',
+            'New York': 'US/Eastern',
+            'Chicago': 'US/Central',
+            'Denver': 'US/Mountain',
+            'Los Angeles': 'US/Pacific',
+            'Paris': 'Europe/Paris',
+            'London': 'Europe/London',
+            'India': 'Asia/Kolkata',
+            'Tokyo': 'Asia/Tokyo',
+            'Sydney': 'Australia/Sydney',
+            'Auckland': 'Pacific/Auckland'
+        }
         
-        layout = QVBoxLayout()
-        layout.setSpacing(5)
+        self.clock_labels = {}
+        self.setup_ui()
+        self.update_time()
         
-        title = QLabel('TIME ZONES')
-        title.setFont(QFont('Monospace', 16, QFont.Bold))
-        title.setAlignment(Qt.AlignCenter)
-        layout.addWidget(title)
+    def setup_ui(self):
+        # Title
+        title = tk.Label(self.root, text="WORLD CLOCK", font=("Courier", 24, "bold"), 
+                        bg='black', fg='cyan')
+        title.pack(pady=10)
         
-        # Controls
-        ctrl = QHBoxLayout()
-        self.tz_select = QComboBox()
-        self.tz_select.addItems(['UTC', 'US/Eastern', 'US/Central', 'Europe/Paris', 'Asia/Tokyo', 'Australia/Sydney', 'Asia/Kolkata', 'Europe/London'])
-        self.tz_select.setStyleSheet("background: #333; color: lime;")
-        ctrl.addWidget(self.tz_select)
+        # Control Frame
+        control_frame = tk.Frame(self.root, bg='black')
+        control_frame.pack(pady=5)
         
-        add_btn = QPushButton('ADD')
-        add_btn.setStyleSheet("background: lime; color: black;")
-        add_btn.clicked.connect(self.add)
-        ctrl.addWidget(add_btn)
+        tk.Label(control_frame, text="Add:", font=("Courier", 10), 
+                bg='black', fg='lime').pack(side=tk.LEFT, padx=5)
         
-        rm_btn = QPushButton('RM')
-        rm_btn.setStyleSheet("background: red; color: white;")
-        rm_btn.clicked.connect(self.remove)
-        ctrl.addWidget(rm_btn)
+        self.tz_var = tk.StringVar(value='UTC')
+        tz_menu = tk.OptionMenu(control_frame, self.tz_var, *self.timezones.keys())
+        tz_menu.configure(bg='#333', fg='lime', font=("Courier", 10))
+        tz_menu.pack(side=tk.LEFT, padx=5)
         
-        layout.addLayout(ctrl)
+        add_btn = tk.Button(control_frame, text="ADD", command=self.add_clock,
+                           bg='lime', fg='black', font=("Courier", 10, "bold"),
+                           padx=10)
+        add_btn.pack(side=tk.LEFT, padx=5)
         
-        # Clock area
-        self.clock_layout = QVBoxLayout()
-        self.clock_layout.setSpacing(3)
+        del_btn = tk.Button(control_frame, text="DEL", command=self.del_clock,
+                           bg='red', fg='white', font=("Courier", 10, "bold"),
+                           padx=10)
+        del_btn.pack(side=tk.LEFT, padx=5)
         
-        # Add default
-        for tz in ['UTC', 'US/Eastern', 'Europe/Paris', 'Asia/Tokyo']:
-            self.add_label(tz)
+        # Clocks Frame
+        self.clocks_frame = tk.Frame(self.root, bg='black')
+        self.clocks_frame.pack(fill=tk.BOTH, expand=True, padx=10, pady=10)
         
-        layout.addLayout(self.clock_layout)
-        layout.addStretch()
+        # Add default clocks
+        for tz in ['UTC', 'New York', 'Paris', 'Tokyo']:
+            self.add_clock(tz)
         
-        self.setLayout(layout)
-        
-        # Timer
-        self.timer = QTimer()
-        self.timer.timeout.connect(self.tick)
-        self.timer.start(1000)
-        self.tick()
+        # Update every second
+        self.update_clock()
     
-    def add_label(self, tz):
-        if any(l[0] == tz for l in self.labels):
+    def add_clock(self, tz_name=None):
+        if tz_name is None:
+            tz_name = self.tz_var.get()
+        
+        if tz_name in self.clock_labels:
             return
-        lbl = QLabel()
-        lbl.setFont(QFont('Monospace', 14, QFont.Bold))
-        lbl.setAlignment(Qt.AlignCenter)
-        lbl.setStyleSheet("background: #222; color: lime; padding: 5px;")
-        self.clock_layout.insertWidget(len(self.labels), lbl)
-        self.labels.append([tz, lbl])
+        
+        label = tk.Label(self.clocks_frame, text="", font=("Courier", 12, "bold"),
+                        bg='#1a1a1a', fg='lime', pady=10)
+        label.pack(fill=tk.X, pady=5)
+        self.clock_labels[tz_name] = label
     
-    def add(self):
-        self.add_label(self.tz_select.currentText())
+    def del_clock(self):
+        if self.clock_labels:
+            tz_name = list(self.clock_labels.keys())[-1]
+            label = self.clock_labels.pop(tz_name)
+            label.destroy()
     
-    def remove(self):
-        if self.labels:
-            tz, lbl = self.labels.pop()
-            lbl.deleteLater()
+    def update_time(self):
+        for tz_name, label in self.clock_labels.items():
+            tz = pytz.timezone(self.timezones[tz_name])
+            now = datetime.now(tz)
+            time_str = now.strftime('%H:%M:%S')
+            date_str = now.strftime('%A, %Y-%m-%d')
+            text = f"{tz_name}  |  {time_str}  |  {date_str}"
+            label.config(text=text)
     
-    def tick(self):
-        for tz, lbl in self.labels:
-            now = datetime.now(pytz.timezone(tz))
-            txt = now.strftime('%H:%M:%S') + '\n' + tz + '\n' + now.strftime('%a %m/%d')
-            lbl.setText(txt)
+    def update_clock(self):
+        self.update_time()
+        self.root.after(1000, self.update_clock)
 
 if __name__ == '__main__':
-    app = QApplication(sys.argv)
-    w = Clock()
-    w.show()
-    sys.exit(app.exec_())
+    root = tk.Tk()
+    app = WorldClock(root)
+    root.mainloop()
