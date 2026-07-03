@@ -1,113 +1,105 @@
+#!/usr/bin/env python3
 import sys
+import os
 from datetime import datetime
 import pytz
-from PyQt5.QtWidgets import QApplication, QWidget, QVBoxLayout, QHBoxLayout, QLabel, QComboBox, QPushButton
-from PyQt5.QtCore import QTimer, Qt
-from PyQt5.QtGui import QFont
 
-class WorldClock(QWidget):
+# Check if PyQt5 is installed
+try:
+    from PyQt5.QtWidgets import QApplication, QWidget, QVBoxLayout, QLabel, QPushButton, QComboBox, QHBoxLayout
+    from PyQt5.QtCore import QTimer, Qt
+    from PyQt5.QtGui import QFont
+except ImportError:
+    print("PyQt5 not installed. Installing...")
+    os.system("pip install PyQt5 pytz")
+    from PyQt5.QtWidgets import QApplication, QWidget, QVBoxLayout, QLabel, QPushButton, QComboBox, QHBoxLayout
+    from PyQt5.QtCore import QTimer, Qt
+    from PyQt5.QtGui import QFont
+
+class Clock(QWidget):
     def __init__(self):
         super().__init__()
-        self.timezones = {
-            'UTC': 'UTC',
-            'EST (New York)': 'US/Eastern',
-            'CST (Chicago)': 'US/Central',
-            'CET (Paris)': 'Europe/Paris',
-            'IST (India)': 'Asia/Kolkata',
-            'JST (Tokyo)': 'Asia/Tokyo',
-            'AEST (Sydney)': 'Australia/Sydney',
-            'NZST (Auckland)': 'Pacific/Auckland'
-        }
-        self.clock_labels = {}
-        self.setup_ui()
-        self.setup_timer()
+        self.zones = ['UTC', 'US/Eastern', 'Europe/Paris', 'Asia/Tokyo', 'Australia/Sydney']
+        self.labels = []
+        self.init()
         
-    def setup_ui(self):
-        self.setWindowTitle('World Clock')
-        self.setGeometry(100, 100, 900, 600)
-        self.setStyleSheet("background-color: #111; color: #0f0;")
+    def init(self):
+        self.setWindowTitle('Clock')
+        self.setGeometry(50, 50, 600, 400)
+        self.setStyleSheet("background: black; color: lime;")
         
-        main = QVBoxLayout()
+        layout = QVBoxLayout()
+        layout.setSpacing(5)
         
-        title = QLabel('WORLD CLOCK')
-        title.setFont(QFont('Courier', 28, QFont.Bold))
+        title = QLabel('TIME ZONES')
+        title.setFont(QFont('Monospace', 16, QFont.Bold))
         title.setAlignment(Qt.AlignCenter)
-        title.setStyleSheet("color: #0ff;")
-        main.addWidget(title)
+        layout.addWidget(title)
         
-        controls = QHBoxLayout()
-        lbl = QLabel('Add:')
-        lbl.setFont(QFont('Courier', 12))
-        controls.addWidget(lbl)
+        # Controls
+        ctrl = QHBoxLayout()
+        self.tz_select = QComboBox()
+        self.tz_select.addItems(['UTC', 'US/Eastern', 'US/Central', 'Europe/Paris', 'Asia/Tokyo', 'Australia/Sydney', 'Asia/Kolkata', 'Europe/London'])
+        self.tz_select.setStyleSheet("background: #333; color: lime;")
+        ctrl.addWidget(self.tz_select)
         
-        self.combo = QComboBox()
-        self.combo.addItems(self.timezones.keys())
-        self.combo.setFont(QFont('Courier', 11))
-        self.combo.setStyleSheet("background-color: #222; color: #0f0;")
-        controls.addWidget(self.combo)
+        add_btn = QPushButton('ADD')
+        add_btn.setStyleSheet("background: lime; color: black;")
+        add_btn.clicked.connect(self.add)
+        ctrl.addWidget(add_btn)
         
-        btn_add = QPushButton('ADD')
-        btn_add.setFont(QFont('Courier', 10, QFont.Bold))
-        btn_add.setStyleSheet("background-color: #0f0; color: #000;")
-        btn_add.clicked.connect(self.add_clock)
-        controls.addWidget(btn_add)
+        rm_btn = QPushButton('RM')
+        rm_btn.setStyleSheet("background: red; color: white;")
+        rm_btn.clicked.connect(self.remove)
+        ctrl.addWidget(rm_btn)
         
-        btn_del = QPushButton('DEL')
-        btn_del.setFont(QFont('Courier', 10, QFont.Bold))
-        btn_del.setStyleSheet("background-color: #f00; color: #fff;")
-        btn_del.clicked.connect(self.del_clock)
-        controls.addWidget(btn_del)
+        layout.addLayout(ctrl)
         
-        controls.addStretch()
-        main.addLayout(controls)
+        # Clock area
+        self.clock_layout = QVBoxLayout()
+        self.clock_layout.setSpacing(3)
         
-        self.clocks = QVBoxLayout()
-        self.clocks.setSpacing(10)
+        # Add default
+        for tz in ['UTC', 'US/Eastern', 'Europe/Paris', 'Asia/Tokyo']:
+            self.add_label(tz)
         
-        for tz in ['UTC', 'EST (New York)', 'CET (Paris)', 'JST (Tokyo)']:
-            self.create_clock(tz)
+        layout.addLayout(self.clock_layout)
+        layout.addStretch()
         
-        main.addLayout(self.clocks)
-        main.addStretch()
-        self.setLayout(main)
+        self.setLayout(layout)
         
-    def create_clock(self, tz_name):
-        if tz_name in self.clock_labels:
-            return
-        label = QLabel()
-        label.setFont(QFont('Courier', 18, QFont.Bold))
-        label.setAlignment(Qt.AlignCenter)
-        label.setStyleSheet("background-color: #1a1a1a; color: #0f0; padding: 10px; border: 1px solid #0f0;")
-        label.setMinimumHeight(60)
-        self.clocks.insertWidget(len(self.clock_labels), label)
-        self.clock_labels[tz_name] = label
-        
-    def add_clock(self):
-        tz = self.combo.currentText()
-        self.create_clock(tz)
-        
-    def del_clock(self):
-        if self.clock_labels:
-            tz = list(self.clock_labels.keys())[-1]
-            label = self.clock_labels.pop(tz)
-            label.deleteLater()
-    
-    def setup_timer(self):
+        # Timer
         self.timer = QTimer()
-        self.timer.timeout.connect(self.update_clocks)
+        self.timer.timeout.connect(self.tick)
         self.timer.start(1000)
-        self.update_clocks()
-        
-    def update_clocks(self):
-        for tz_name, label in self.clock_labels.items():
-            tz = pytz.timezone(self.timezones[tz_name])
-            now = datetime.now(tz)
-            time_text = now.strftime('%H:%M:%S')
-            date_text = now.strftime('%A %Y-%m-%d')
-            label.setText(f'{tz_name}\n{time_text}\n{date_text}')
+        self.tick()
+    
+    def add_label(self, tz):
+        if any(l[0] == tz for l in self.labels):
+            return
+        lbl = QLabel()
+        lbl.setFont(QFont('Monospace', 14, QFont.Bold))
+        lbl.setAlignment(Qt.AlignCenter)
+        lbl.setStyleSheet("background: #222; color: lime; padding: 5px;")
+        self.clock_layout.insertWidget(len(self.labels), lbl)
+        self.labels.append([tz, lbl])
+    
+    def add(self):
+        self.add_label(self.tz_select.currentText())
+    
+    def remove(self):
+        if self.labels:
+            tz, lbl = self.labels.pop()
+            lbl.deleteLater()
+    
+    def tick(self):
+        for tz, lbl in self.labels:
+            now = datetime.now(pytz.timezone(tz))
+            txt = now.strftime('%H:%M:%S') + '\n' + tz + '\n' + now.strftime('%a %m/%d')
+            lbl.setText(txt)
 
 if __name__ == '__main__':
     app = QApplication(sys.argv)
-    clock = WorldClock()
-    clock.show()
+    w = Clock()
+    w.show()
     sys.exit(app.exec_())
